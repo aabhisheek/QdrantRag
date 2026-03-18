@@ -1,0 +1,13 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "SIM", "TCH"]
+ignore = ["S101", "S105", "S106"]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S106"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
