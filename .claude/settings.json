@@ -21,6 +21,15 @@
             "command": "bash .claude/hooks/on-bash-complete.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/on-edit-complete.sh"
+          }
+        ]
       }
     ],
     "Notification": [

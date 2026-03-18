@@ -17,21 +17,24 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # OpenAI
+    # OpenAI (optional, kept for compatibility)
     openai_api_key: str = ""
+
+    # Groq
+    groq_api_key: str = ""
 
     # Qdrant
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection: str = "knowledge_base"
 
-    # Embeddings
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    # Embeddings (FastEmbed — runs locally, no API key needed)
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_dimensions: int = 384
 
     # LLM
-    llm_model: str = "gpt-4o-mini"
-    llm_provider: str = "openai"
+    llm_model: str = "llama-3.3-70b-versatile"
+    llm_provider: str = "groq"
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"

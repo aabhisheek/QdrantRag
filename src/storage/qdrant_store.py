@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import structlog
-from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointIdsList, VectorParams
@@ -32,24 +32,41 @@ class QdrantStore:
             port=settings.qdrant_port,
             check_compatibility=False,
         )
-        self._embeddings = OpenAIEmbeddings(
-            model=settings.embedding_model,
-            openai_api_key=settings.openai_api_key,
+        self._embeddings = FastEmbedEmbeddings(
+            model_name=settings.embedding_model,
         )
         self._vector_store: QdrantVectorStore | None = None
 
     async def initialize(self) -> None:
-        """Create the collection if it doesn't exist and initialize the vector store."""
+        """Create the collection if it doesn't exist and initialize the vector store.
+
+        If the collection exists with a different vector dimension (e.g. embedding model
+        was changed), it is deleted and recreated automatically.
+        """
         collection_name = self._settings.qdrant_collection
+        required_dim = self._settings.embedding_dimensions
 
         collections = self._client.get_collections().collections
         existing_names = {c.name for c in collections}
+
+        if collection_name in existing_names:
+            existing_dim = self._get_collection_dimensions(collection_name)
+            if existing_dim is not None and existing_dim != required_dim:
+                logger.warning(
+                    "collection_dimension_mismatch",
+                    collection=collection_name,
+                    existing_dim=existing_dim,
+                    required_dim=required_dim,
+                    action="recreating",
+                )
+                self._client.delete_collection(collection_name)
+                existing_names.discard(collection_name)
 
         if collection_name not in existing_names:
             self._client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(
-                    size=self._settings.embedding_dimensions,
+                    size=required_dim,
                     distance=Distance.COSINE,
                 ),
             )
@@ -61,6 +78,31 @@ class QdrantStore:
             embedding=self._embeddings,
         )
         logger.info("qdrant_store_initialized", collection=collection_name)
+
+    def _get_collection_dimensions(self, collection_name: str) -> int | None:
+        """Return the vector size of an existing collection, or None if undetectable.
+
+        Args:
+            collection_name: The Qdrant collection name.
+
+        Returns:
+            Vector dimension size, or None.
+        """
+        info = self._client.get_collection(collection_name)
+        vectors_config = info.config.params.vectors
+        # Unnamed vector: has a direct .size attribute
+        size = getattr(vectors_config, "size", None)
+        if isinstance(size, int):
+            return size
+        # Named vectors: dict-like root model
+        root = getattr(vectors_config, "root", vectors_config)
+        if isinstance(root, dict):
+            first = next(iter(root.values()), None)
+            if first is not None:
+                named_size = getattr(first, "size", None)
+                if isinstance(named_size, int):
+                    return named_size
+        return None
 
     @property
     def vector_store(self) -> QdrantVectorStore:
@@ -82,7 +124,7 @@ class QdrantStore:
         return self._client
 
     @property
-    def embeddings(self) -> OpenAIEmbeddings:
+    def embeddings(self) -> FastEmbedEmbeddings:
         """Return the embeddings model."""
         return self._embeddings
 

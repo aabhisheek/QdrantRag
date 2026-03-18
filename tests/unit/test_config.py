@@ -11,10 +11,10 @@ def test_settings_defaults() -> None:
     assert settings.qdrant_host == "localhost"
     assert settings.qdrant_port == 6333
     assert settings.qdrant_collection == "knowledge_base"
-    assert settings.embedding_model == "text-embedding-3-small"
-    assert settings.embedding_dimensions == 1536
-    assert settings.llm_model == "gpt-4o-mini"
-    assert settings.llm_provider == "openai"
+    assert settings.embedding_model == "BAAI/bge-small-en-v1.5"
+    assert settings.embedding_dimensions == 384
+    assert settings.llm_model == "llama-3.3-70b-versatile"
+    assert settings.llm_provider == "groq"
     assert settings.chunk_size == 1024
     assert settings.chunk_overlap == 128
     assert settings.top_k == 5

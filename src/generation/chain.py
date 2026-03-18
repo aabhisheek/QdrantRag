@@ -8,6 +8,7 @@ import structlog
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 
@@ -55,6 +56,12 @@ class GenerationChain:
         Returns:
             A LangChain chat model instance.
         """
+        if self._settings.llm_provider == "groq":
+            return ChatGroq(
+                model=self._settings.llm_model,
+                groq_api_key=self._settings.groq_api_key,
+                temperature=0.1,
+            )
         if self._settings.llm_provider == "ollama":
             return ChatOllama(
                 model=self._settings.llm_model,
