@@ -20,6 +20,8 @@ env/
 *.swo
 *~
 
+#json
+body.json
 # Environment
 .env
 

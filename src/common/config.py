@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # Retrieval
     top_k: int = 5
-    score_threshold: float = 0.5
+    score_threshold: float = 0.2
 
     # Auth
     api_key: str = ""
