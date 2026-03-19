@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import documents_router, health_router, ingest_router, query_router
 from src.common.config import get_settings
@@ -72,3 +73,11 @@ app.include_router(health_router)
 app.include_router(ingest_router)
 app.include_router(query_router)
 app.include_router(documents_router)
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    return RedirectResponse(url="/ui/index.html")
+
+
+app.mount("/ui", StaticFiles(directory="static", html=True), name="ui")

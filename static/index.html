@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Knowledge Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2d3148;
+      --accent: #6c63ff;
+      --accent-hover: #5a52e8;
+      --text: #e8eaf6;
+      --text-muted: #8b92b8;
+      --success: #4caf82;
+      --danger: #e05a5a;
+      --warning: #e0a050;
+      --radius: 10px;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); letter-spacing: 0.02em; }
+    .logo span { color: var(--text); font-weight: 400; }
+
+    nav { display: flex; gap: 4px; }
+    nav button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    nav button:hover { background: var(--surface2); color: var(--text); }
+    nav button.active { background: var(--accent); color: #fff; }
+
+    .settings-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      font-size: 1.2rem;
+      transition: color 0.15s;
+    }
+    .settings-btn:hover { color: var(--text); }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .tab-panel.active { display: flex; }
+
+    /* ── Chat Tab ── */
+    #chat-panel {
+      flex-direction: column;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 5px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .welcome {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .welcome h2 { font-size: 1.5rem; color: var(--text); margin-bottom: 8px; }
+    .welcome p { font-size: 0.95rem; line-height: 1.6; }
+
+    .message-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .message-row.user { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .avatar.user-av { background: var(--accent); }
+    .avatar.ai-av { background: var(--surface2); border: 1px solid var(--border); }
+
+    .bubble {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 0.92rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .user .bubble {
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 3px;
+    }
+    .ai .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 3px;
+    }
+
+    .sources {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .sources span {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin: 2px 3px 2px 0;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 14px 16px;
+    }
+    .typing-indicator span {
+      width: 8px; height: 8px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40% { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .chat-input-bar {
+      padding: 16px 24px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    #question-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 12px 16px;
+      font-size: 0.93rem;
+      font-family: var(--font);
+      resize: none;
+      min-height: 48px;
+      max-height: 150px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #question-input:focus { border-color: var(--accent); }
+    #question-input::placeholder { color: var(--text-muted); }
+
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Upload Tab ── */
+    #upload-panel {
+      padding: 32px;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-y: auto;
+    }
+
+    .upload-card {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .upload-card h2 { font-size: 1.2rem; color: var(--text); }
+    .upload-card p { font-size: 0.88rem; color: var(--text-muted); margin-top: 4px; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--surface);
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.06);
+    }
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .drop-zone h3 { color: var(--text); margin-bottom: 6px; }
+    .drop-zone p { color: var(--text-muted); font-size: 0.88rem; }
+    #file-input { display: none; }
+
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .or-divider::before, .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .text-upload {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .text-upload label { font-size: 0.9rem; color: var(--text-muted); }
+    .text-upload input[type="text"] {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .text-upload input[type="text"]:focus { border-color: var(--accent); }
+    .text-upload textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-family: var(--font);
+      resize: vertical;
+      min-height: 140px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .text-upload textarea:focus { border-color: var(--accent); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 24px;
+      font-size: 0.93rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .upload-status {
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .upload-status.success { background: rgba(76, 175, 130, 0.12); border: 1px solid var(--success); color: var(--success); display: block; }
+    .upload-status.error { background: rgba(224, 90, 90, 0.12); border: 1px solid var(--danger); color: var(--danger); display: block; }
+    .upload-status.loading { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); display: flex; align-items: center; gap: 10px; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Documents Tab ── */
+    #docs-panel {
+      padding: 24px;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .docs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .docs-header h2 { font-size: 1.1rem; }
+    .refresh-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 7px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    .docs-table-wrap {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .docs-table-wrap::-webkit-scrollbar { width: 5px; }
+    .docs-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    thead th {
+      text-align: left;
+      padding: 10px 14px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 500;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 12px 14px; }
+
+    .badge {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .del-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+    }
+    .del-btn:hover {
+      background: rgba(224, 90, 90, 0.12);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 64px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Settings Modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      display: none;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .modal h3 { margin-bottom: 20px; font-size: 1.05rem; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .form-group label { font-size: 0.85rem; color: var(--text-muted); }
+    .form-group input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .btn-secondary {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--text-muted);
+    }
+    .status-dot.online { background: var(--success); }
+    .health-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h3>⚙️ Settings</h3>
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" id="api-key-input" placeholder="Enter your API key" />
+    </div>
+    <div class="form-group">
+      <label>API Base URL</label>
+      <input type="text" id="base-url-input" placeholder="http://localhost:8000" />
+    </div>
+    <div class="health-row" id="health-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="health-text">Checking connection...</span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-primary" style="width:auto" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">RAG <span>Knowledge Assistant</span></div>
+  <nav>
+    <button class="active" onclick="switchTab('chat', this)">💬 Chat</button>
+    <button onclick="switchTab('upload', this)">📤 Upload</button>
+    <button onclick="switchTab('docs', this)">📁 Documents</button>
+  </nav>
+  <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+</header>
+
+<main>
+
+  <!-- ── Chat Tab ── -->
+  <div class="tab-panel active" id="chat-panel">
+    <div id="messages">
+      <div class="welcome" id="welcome-msg">
+        <h2>Ask your Knowledge Base</h2>
+        <p>Upload documents first, then ask questions.<br/>
+           Answers are grounded in your uploaded content.</p>
+      </div>
+    </div>
+    <div class="chat-input-bar">
+      <textarea
+        id="question-input"
+        rows="1"
+        placeholder="Ask a question about your documents..."
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendQuestion()" title="Send">➤</button>
+    </div>
+  </div>
+
+  <!-- ── Upload Tab ── -->
+  <div class="tab-panel" id="upload-panel">
+    <div class="upload-card">
+      <div>
+        <h2>Upload a Document</h2>
+        <p>Supported: PDF, TXT, Markdown (.md)</p>
+      </div>
+
+      <!-- File drop zone -->
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="icon">📄</div>
+        <h3>Drop file here or click to browse</h3>
+        <p>PDF · TXT · MD — up to 50 MB</p>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.txt,.md" onchange="uploadFile(this.files[0])" />
+
+      <div class="or-divider">or paste text directly</div>
+
+      <!-- Text paste -->
+      <div class="text-upload">
+        <label>Document name (required)</label>
+        <input type="text" id="text-doc-name" placeholder="e.g. my-notes.txt" />
+        <label style="margin-top:4px">Paste content</label>
+        <textarea id="text-content" placeholder="Paste your text here..."></textarea>
+        <button class="btn-primary" onclick="uploadText()">Upload Text</button>
+      </div>
+
+      <div class="upload-status" id="upload-status"></div>
+    </div>
+  </div>
+
+  <!-- ── Documents Tab ── -->
+  <div class="tab-panel" id="docs-panel">
+    <div class="docs-header">
+      <h2>Ingested Documents</h2>
+      <button class="refresh-btn" onclick="loadDocuments()">↻ Refresh</button>
+    </div>
+    <div class="docs-table-wrap" id="docs-table-wrap">
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>Loading documents...</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ──────────────────────────────────────────────
+//  State & Config
+// ──────────────────────────────────────────────
+const DEFAULT_BASE = window.location.origin;
+const DEFAULT_KEY  = 'rag-secret-key-2024';
+
+function getBase() { return (localStorage.getItem('rag_base') || DEFAULT_BASE).replace(/\/$/, ''); }
+function getKey()  { return localStorage.getItem('rag_key')  || DEFAULT_KEY; }
+
+function headers(extra) {
+  return { 'Authorization': 'Bearer ' + getKey(), ...extra };
+}
+
+// ──────────────────────────────────────────────
+//  Tab switching
+// ──────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(name + '-panel').classList.add('active');
+  btn.classList.add('active');
+  if (name === 'docs') loadDocuments();
+}
+
+// ──────────────────────────────────────────────
+//  Settings modal
+// ──────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('api-key-input').value = getKey();
+  document.getElementById('base-url-input').value = getBase();
+  document.getElementById('settings-modal').classList.add('open');
+  checkHealth();
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+function saveSettings() {
+  const key  = document.getElementById('api-key-input').value.trim();
+  const base = document.getElementById('base-url-input').value.trim();
+  if (key)  localStorage.setItem('rag_key', key);
+  if (base) localStorage.setItem('rag_base', base);
+  closeSettings();
+}
+
+async function checkHealth() {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('health-text');
+  dot.className = 'status-dot';
+  text.textContent = 'Checking…';
+  try {
+    const r = await fetch(getBase() + '/health');
+    if (r.ok) {
+      dot.className = 'status-dot online';
+      text.textContent = 'Connected ✓';
+    } else {
+      text.textContent = 'Server returned ' + r.status;
+    }
+  } catch {
+    text.textContent = 'Cannot reach server';
+  }
+}
+
+// Close modal when clicking overlay
+document.getElementById('settings-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
+});
+
+// ──────────────────────────────────────────────
+//  Chat
+// ──────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+}
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); }
+}
+
+function addMessage(role, text, sources) {
+  const welcome = document.getElementById('welcome-msg');
+  if (welcome) welcome.remove();
+
+  const container = document.getElementById('messages');
+  const row = document.createElement('div');
+  row.className = 'message-row ' + (role === 'user' ? 'user' : 'ai');
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar ' + (role === 'user' ? 'user-av' : 'ai-av');
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+
+  if (sources && sources.length > 0) {
+    const src = document.createElement('div');
+    src.className = 'sources';
+    src.innerHTML = '📎 ' + sources.map(s =>
+      `<span title="${s.document_id}">${s.filename}</span>`
+    ).join('');
+    bubble.appendChild(src);
+  }
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return row;
+}
+
+function addTyping() {
+  const container = document.getElementById('messages');
+  const row = document.createElement('div');
+  row.className = 'message-row ai';
+  row.id = 'typing-row';
+  row.innerHTML = `
+    <div class="avatar ai-av">🤖</div>
+    <div class="bubble">
+      <div class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+    </div>`;
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-row');
+  if (t) t.remove();
+}
+
+async function sendQuestion() {
+  const input = document.getElementById('question-input');
+  const btn   = document.getElementById('send-btn');
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+
+  addMessage('user', question);
+  addTyping();
+
+  try {
+    const res = await fetch(getBase() + '/query', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ question })
+    });
+
+    removeTyping();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+      addMessage('ai', '⚠️ Error: ' + (err.detail || res.status));
+    } else {
+      const data = await res.json();
+      addMessage('ai', data.answer, data.sources);
+    }
+  } catch (err) {
+    removeTyping();
+    addMessage('ai', '⚠️ Could not reach the server. Is it running?');
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+// ──────────────────────────────────────────────
+//  Upload — file
+// ──────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById('drop-zone').classList.add('dragover'); }
+function onDragLeave(e) { document.getElementById('drop-zone').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+}
+
+function setUploadStatus(type, msg) {
+  const el = document.getElementById('upload-status');
+  el.className = 'upload-status ' + type;
+  if (type === 'loading') {
+    el.innerHTML = `<div class="spinner"></div>${msg}`;
+  } else {
+    el.textContent = msg;
+  }
+}
+
+async function uploadFile(file) {
+  if (!file) return;
+  const allowed = ['.pdf', '.txt', '.md'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!allowed.includes(ext)) {
+    setUploadStatus('error', 'Unsupported file type. Use PDF, TXT, or MD.');
+    return;
+  }
+
+  setUploadStatus('loading', `Uploading ${file.name}…`);
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch(getBase() + '/ingest', {
+      method: 'POST',
+      headers: headers(),
+      body: form
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setUploadStatus('success', `✓ "${data.filename}" ingested — ${data.chunk_count} chunks created.`);
+    } else {
+      setUploadStatus('error', '✗ ' + (data.detail || 'Upload failed'));
+    }
+  } catch {
+    setUploadStatus('error', '✗ Could not reach server.');
+  }
+
+  // Reset file input
+  document.getElementById('file-input').value = '';
+}
+
+// ──────────────────────────────────────────────
+//  Upload — text paste
+// ──────────────────────────────────────────────
+async function uploadText() {
+  const name    = document.getElementById('text-doc-name').value.trim();
+  const content = document.getElementById('text-content').value.trim();
+
+  if (!name)    { setUploadStatus('error', 'Please enter a document name.'); return; }
+  if (!content) { setUploadStatus('error', 'Please paste some text content.'); return; }
+
+  // Ensure name ends with .txt or .md
+  const finalName = /\.(txt|md)$/i.test(name) ? name : name + '.txt';
+
+  setUploadStatus('loading', `Uploading "${finalName}"…`);
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const file = new File([blob], finalName, { type: 'text/plain' });
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch(getBase() + '/ingest', {
+      method: 'POST',
+      headers: headers(),
+      body: form
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setUploadStatus('success', `✓ "${data.filename}" ingested — ${data.chunk_count} chunks created.`);
+      document.getElementById('text-doc-name').value = '';
+      document.getElementById('text-content').value = '';
+    } else {
+      setUploadStatus('error', '✗ ' + (data.detail || 'Upload failed'));
+    }
+  } catch {
+    setUploadStatus('error', '✗ Could not reach server.');
+  }
+}
+
+// ──────────────────────────────────────────────
+//  Documents list
+// ──────────────────────────────────────────────
+async function loadDocuments() {
+  const wrap = document.getElementById('docs-table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Loading…</p></div>';
+
+  try {
+    const res = await fetch(getBase() + '/documents', {
+      headers: headers()
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      wrap.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>${err.detail || 'Failed to load documents'}</p></div>`;
+      return;
+    }
+
+    const data = await res.json();
+
+    if (data.total === 0) {
+      wrap.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No documents yet. Upload one first.</p></div>';
+      return;
+    }
+
+    const rows = data.documents.map(doc => `
+      <tr>
+        <td>${escHtml(doc.filename)}</td>
+        <td><span class="badge">${escHtml(doc.file_type)}</span></td>
+        <td>${doc.chunk_count}</td>
+        <td style="font-size:0.78rem;color:var(--text-muted);max-width:160px;overflow:hidden;text-overflow:ellipsis"
+            title="${escHtml(doc.document_id)}">${escHtml(doc.document_id.slice(0, 8))}…</td>
+        <td><button class="del-btn" onclick="deleteDoc('${escHtml(doc.document_id)}', this)">🗑 Delete</button></td>
+      </tr>
+    `).join('');
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Type</th>
+            <th>Chunks</th>
+            <th>ID</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>Could not reach server.</p></div>';
+  }
+}
+
+async function deleteDoc(docId, btn) {
+  if (!confirm('Delete this document and all its chunks?')) return;
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const res = await fetch(getBase() + '/documents/' + encodeURIComponent(docId), {
+      method: 'DELETE',
+      headers: headers()
+    });
+    if (res.ok) {
+      loadDocuments();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert('Delete failed: ' + (err.detail || res.status));
+      btn.disabled = false;
+      btn.textContent = '🗑 Delete';
+    }
+  } catch {
+    alert('Could not reach server.');
+    btn.disabled = false;
+    btn.textContent = '🗑 Delete';
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ──────────────────────────────────────────────
+//  Init
+// ──────────────────────────────────────────────
+// Pre-fill settings from localStorage on load
+window.addEventListener('DOMContentLoaded', () => {
+  // If first visit, persist defaults
+  if (!localStorage.getItem('rag_key'))  localStorage.setItem('rag_key', DEFAULT_KEY);
+  if (!localStorage.getItem('rag_base')) localStorage.setItem('rag_base', DEFAULT_BASE);
+});
+</script>
+</body>
+</html>
